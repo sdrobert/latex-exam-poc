@@ -1,0 +1,50 @@
+% Copyright 2021 Sean Robertson
+
+% Licensed under the Apache License, Version 2.0 (the "License");
+% you may not use this file except in compliance with the License.
+% You may obtain a copy of the License at
+
+%     http://www.apache.org/licenses/LICENSE-2.0
+
+% Unless required by applicable law or agreed to in writing, software
+% distributed under the License is distributed on an "AS IS" BASIS,
+% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+% See the License for the specific language governing permissions and
+% limitations under the License.
+
+\documentclass{article}
+
+\usepackage{hyperref}
+\usepackage{examfields}
+
+\begin{document}
+
+\begin{Form}
+\hrule
+\noindent
+Testing field combinations for my package.
+
+\noindent
+\TextField{Enter something here:}\\
+\NumericField[name=urwoi]{Unbounded real w/o \texorpdfstring{$\infty$}{Infinity}} \\
+\NumericField[name=urwie,extended, exponential]{Unbounded real w/ inf in exponential not.} \\
+\NumericField[name=prob,low=0, high=1, decimals=2]{Probability (to nearest 0.01)} \\
+\NumericField[name=excl,exclusive, low=2, high=3]{Btw 2 and 3 excl.} \\
+\NumericField[name=int,integer]{Unbounded integer} \\
+\NumericField[name=nat,integer,low=1]{Natural} \\
+\NumericField[name=noisy,validate={app.alert("You entered " + event.value + " and the first field has value " + this.getField("foo").value);}]{Noisy validation} \\
+
+\noindent
+\MultipleChoice[name=choose,radiosymbol=\ding{108}]{Choose one}{Bar,baz={This is the baz}}
+
+\noindent
+\FullTextField[name=fi]{Full (inline)}
+\FullTextField[name=fb,below]{Full (below)}
+
+\noindent
+\MultipleAnswer[name=any]{Choose any number}{Bar, baz={This is the baz}}
+
+\hrule
+\end{Form}
+
+\end{document}

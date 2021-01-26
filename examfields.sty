@@ -1,0 +1,385 @@
+% Copyright 2021 Sean Robertson
+
+% Licensed under the Apache License, Version 2.0 (the "License");
+% you may not use this file except in compliance with the License.
+% You may obtain a copy of the License at
+
+%     http://www.apache.org/licenses/LICENSE-2.0
+
+% Unless required by applicable law or agreed to in writing, software
+% distributed under the License is distributed on an "AS IS" BASIS,
+% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+% See the License for the specific language governing permissions and
+% limitations under the License.
+
+% hyperref (https://ctan.org/pkg/hyperref) is licensed under the LPPL 1.3
+
+% Info %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% This package provides some new commands that build on top of the hyperref
+% form fields in order to make exam writing easier. As they're built off the
+% fundamental PDF forms (acroforms): check boxes, text fields, and choice
+% menus, they should be compatible with practically all PDF viewers. Full
+% functionality relies on the PDF readers having javascript enabled (most
+% will by default), but javascript is not necessary to
+
+% As all commands are built on top of hyperref commands, most pass through
+% all or almost all options to the underlying hyperref command. Consult
+% https://www.tug.org/applications/hyperref/manual.html for those options.
+
+% BASIC USAGE OF HYPERREF FORMS:
+
+% take a look at demo_exam.tex for an example.
+
+% There should be a single Form environment in your latex document that
+% encapsulates all fields (i.e. \begin{Form} ... \end{Form}). Within that
+% environment, you can shove whatever text/equations/whatever that you
+% normally would. Whenever you want the reader to enter input, you enter a
+% field command, such as:
+%
+% \TextField{Enter something here:}
+%
+% which, when compiled, features the text "Enter something here:" and,
+% immediately to its right, a free-form text field for the reader to enter text
+% in.
+%
+% You could rig a special submit button to send the form to your web server
+% with a POST command. You don't need to, though. Readers can save versions of
+% this file with fields filled in, then you can extract those fields as a
+% dictionary programmatically from the PDF. See
+% https://stackoverflow.com/a/43680515 for some working python code. In the
+% example above, the key would be 'Enter something here:' (the label). If you
+% don't explicitly set the name of a field, it's whatever the prompt was. I
+% strongly recommend explicitly setting it like so:
+%
+% \TextField[name=question1]{Enter something here:}
+%
+% at which point the key would be 'question1'. If you don't explicitly name
+% your fields, you should definitely check tha the dictionary contains the
+% fields you expect, as special characters or formatted labels mess it up.
+
+% NEW COMMANDS:
+
+% \FullTextField[opts]{label}
+%
+% Derived from \TextField[opts]{label}. Basically the same as a normal text
+% field, but dynamically sets the width of the field to be the remainder of the
+% line. The option "below" inserts a newline at the end of the label (this
+% newline will not be included in the key if the field name is implicit) so
+% that the text field can span the entire line. Without "below", FullTextField
+% is appropriate for name and student id fields. With "below", it is
+% appropriate for short/long-answer questions.
+%
+% new opts:
+%   below:            When set, a newline will be added to the end of the label
+%                     so that the field can span the entire line.
+%
+% removed opts:
+%   width:            The width is always the remainder of the line
+
+% \NumericField[opts]{label}
+%
+% Derived from \TextField[opts]{label}. Adds javascript that validates input,
+% ensuring values are numerical on entry. With javascript disabled, the field
+% behaves like a standard text field.
+%
+% new opts:
+%   decimals=x:       If set with value 'x', the field will be rounded to 'x'
+%                     many digits on validation.
+%   exclusive:        Unset, 'low' and 'high' are inclusive bounds. If set,
+%                     'low' and 'high' are exclusive bounds.
+%   exponential:      If set, the field value will be converted to exponential
+%                     form (Xe{+,-}Y) on validation.
+%   extended:         The field does not usually allow for infinite values. If
+%                     set, the field will admit "-Infinity" and "Infinity".
+%   high=x:           If set, 'x' is the value upper bound (by default
+%                     inclusive)
+%   integer:          When unset, validation ensures real-valued input. When
+%                     set, validation ensures integer input.
+%   low=x:            If set, 'x' is the value lower bound (by default
+%                     inclusive)
+%
+% additional notes:
+% \NumericField uses the \TextField's 'validate' javascript block to ensure
+% numerical values (and sometimes format them). If you pass your own validation
+% block as an option, it will be executed prior to the numeric validation.
+% You should also be aware of the possibility that the reader has disabled
+% javascript when filling in forms, making things like the number of decimal
+% places no guarantee.
+
+% \MultipleChoice[opts]{label}{kv_1, kv_2, ...}
+% where kv_i := label_i OR key_i={label_i}
+%
+% Derived from \ChoiceMenu[opts]{label}{vk_1,vk_2,...}. Allows the reader to
+% select one value from many options. A multiple choice question. Essentially
+% the same functionality as a \ChoiceMenu with "radio" enabled, but formatted
+% as an itemized list. For example,
+%
+% \ChoiceMenu[radio]{foo}{bar,{This is baz}=baz}
+%
+% would format something like this (with [ ] indicating a radio button):
+%
+% foo bar [ ]  This is baz [ ]
+%
+% and would store either '/bar' or '/baz' as the value of the field 'foo',
+% depending on what was selected.
+%
+% \MultipleChoice{foo}{bar,baz={This is baz}}
+%
+% would have the same key-value store, but would be formatted as
+%
+% foo
+%   [ ] bar
+%   [ ] This is baz
+%
+% removed args:
+%   radio,
+%   combo,
+%   popdown:            Flags that would otherwise set the ChoiceMenu style.
+%                       For \MultipleChoice, it is always radio
+%
+% additional notes:
+% In \ChoiceMenu, each element in the last argument is either a label
+% (specifies both key and value) or of the format {label}=key. This is reversed
+% in \MultipleChoice (see above). The mismatch is due to an implementation
+% difficulty, but *come on,* who specifies the identifiers on the right of the
+% equals sign? That's weird.
+
+% \MultipleAnswer[opts]{label}{kv_1, kv_2, ...}
+%
+% Derived from multiple \CheckBox[opt]{label} instances. It is similarly
+% formatted to and has similar syntax to \MultipleChoice, but allows for
+% multiple options to be selected at once. For example,
+%
+% \MultipleAnswer{foo}{bar,baz={This is baz}}
+%
+% would also appear as
+%
+% foo
+%   [ ] bar
+%   [ ] This is baz
+%
+% but the boxes beside both 'bar' and 'baz' can be checked simultaneously. This
+% command would create three fields, 'foo', 'foo-bar', and 'foo-baz'. 'foo-bar'
+% and 'foo-baz' are standard check box fields (with the values '/Yes' or... not
+% '/Yes'... empty I think?). 'foo' is a text field whose value is both: a)
+% dynamically calculated using javascript as a comma-delimited list of the
+% checked boxes; and b) hidden from the user. If both options are checked, the
+% value of 'foo' would be '/bar,/baz'; if neither, the value would be ''.
+% PLEASE READ THE BELOW NOTE BEFORE RELYING ON THE VALUE OF 'foo'.
+%
+% additional notes:
+% The options are shared with \CheckBox, not \ChoiceMenu. There is no primitive
+% field for a collection of check boxes (which is why there are separate
+% fields for each option). While I provide the dynamic aggregation of the
+% checked boxes into a list, it is dangerous to rely on this functionality
+% as it is based on javascript. If the reader disables javascript, that
+% dynamic value will not be populated. Unless you are sure the reader has
+% javascript enabled, you are better off reading the individual states of the
+% checked boxes yourself. If you wish to disable the dynamic field, you can
+% include an asterisk after the command name:
+%
+% \MultipleAnswer*[opts]{label}{kv_1, kv_2, ...}
+%
+% Though it shouldn't hurt to have it, even if javascript is disabled.
+
+% Info %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{examfields}[2020/01/18 Provides exam form fields]
+
+\RequirePackage{hyperref}
+\RequirePackage{xkeyval}
+\RequirePackage{xparse}
+\RequirePackage{etoolbox}
+
+% FullTextField %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newsavebox\FullTextFieldBox
+
+\NewDocumentCommand{\FullTextField}{+O{} +m}{%
+  \begingroup%
+  %
+  \newtoks\rest%
+  \kvsetkeys{FField}{#1}%
+  \sbox\FullTextFieldBox{#2}%
+  \noindent%
+  \ifKV@FField@below%
+    \edef\x{\noexpand\TextField%
+      [\the\rest, width=\noexpand\linewidth]%
+      {#2\noexpand\texorpdfstring\noexpand\\{}}}%
+  \else%
+    \edef\x{\noexpand\TextField%
+      [\the\rest, width=\noexpand{\dimexpr\linewidth-\wd\FullTextFieldBox}]%
+      {#2}}%
+  \fi%
+  \x%
+  \endgroup}
+
+\kv@set@family@handler{FField}{%
+  % disallow "width" parameter
+  \ifstrequal{#1}{width}{\kv@handled@false}%
+  \ifstrempty{#2}{%
+    \rest=\expandafter{\the\rest,#1}%
+  }{% else
+    \rest=\expandafter{\the\rest,#1=#2}}}
+
+\define@boolkeys{FField}{%
+  below}[true]
+
+% FullTextField %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% NumericField %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\NewDocumentCommand{\NumericField}{+O{} +m}{%
+  \begingroup%
+  %
+  \newtoks\rest%
+  \kvsetkeys{NField}{#1}%
+  %
+  % Set defaults if they don't exist. "presetkeys" doesn't play nicely with
+  % kvsetkeys, so we handle defaults here. Boolean flags seem to already exist
+  \ifcsdef{cmdKV@NField@low}{}{\csdef{cmdKV@NField@low}{-Infinity}}%
+  \ifcsdef{cmdKV@NField@high}{}{\csdef{cmdKV@NField@high}{Infinity}}%
+  %
+  \edef\tmpa{%
+    if (event.rc) {  % In case the user specifies a validate block beforehand
+      % Acrobat doesn't seem to have an up-to-date API, which is why
+      % we use some outdated javascript
+      var x = event.value,
+          low = parseFloat("\cmdKV@NField@low"),
+          high = parseFloat("\cmdKV@NField@high");
+      try {
+          if (x.indexOf("x") + x.indexOf("b") + x.indexOf("o") != -3)
+            throw "not base 10 or scientific";
+          x = Number(x);
+          if (x != x) throw "not a number";
+          \ifKV@NField@extended \else if (!isFinite(x)) throw "is infinite"; \fi true;
+          \ifKV@NField@integer if (x \% 1) throw "not an integer" ; \fi true;
+      } catch (err) {
+          app.alert("'" + event.value + "' is " + err);
+          event.rc = false;
+      }
+      if (event.rc && x \ifKV@NField@exclusive <= \else < \fi low) {
+          app.alert("" + event.value + "\ifKV@NField@exclusive <= \else < \fi " + low);
+          event.rc = false;
+      } else if (event.rc && x \ifKV@NField@exclusive >= \else > \fi high) {
+          app.alert("" + event.value + "\ifKV@NField@exclusive >= \else > \fi " + high);
+          event.rc = false;
+      }
+      \ifcsdef{cmdKV@NField@decimals}{x = x.toFixed(\cmdKV@NField@decimals);}{}
+      \ifKV@NField@exponential x = x.toExponential(); \else true; \fi
+      event.value = x;
+    }
+  }%
+  %
+  \ifcsdef{cmdKV@NField@validate}{%
+    \def\tmpb{\cmdKV@NField@validate \tmpa}}{%
+    \def\tmpb{\tmpa}}%
+  % https://tex.stackexchange.com/questions/55622/using-a-macro-evaluating-to-a-set-of-xkeyval-arguments-as-argument-to-another-co
+  % we don't bother with the internal group tags, since the external group tags kill the assignment
+  %
+  % hyperref uses kvsetkeys under the hood as well, but we can't populate *all*
+  % arguments directly using \kvsetkeys{Field}{*} because \TextField
+  % immediately overwrites some of those settings.
+  \edef\x{\noexpand\TextField[\the\rest, validate=\tmpb]{#2}}\x%
+  %
+  \endgroup}
+
+\define@boolkeys{NField}{%
+  integer, exclusive, extended, exponential}[true]
+
+\define@cmdkeys{NField}{%
+  low, high, decimals, validate}
+
+\kv@set@family@handler{NField}{%
+  \ifstrempty{#2}{%
+    \rest=\expandafter{\the\rest,#1}%
+  }{% else
+    \rest=\expandafter{\the\rest,#1=#2}}}
+
+% NumericField %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% MultipleChoice %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\NewDocumentCommand{\MultipleChoice}{+O{} +m +m}{
+  \begingroup%
+  \newtoks\rest%
+  \kvsetkeys{MChoice}{#1}%
+  \ifcsdef{cmdKV@MChoice@name}{}{\csdef{cmdKV@MChoice@name}{#2}}%
+  \ifstrempty{#2}{}{#2}%
+  \edef\x##1##2{%
+    \noexpand\item[]
+    \noexpand\ChoiceMenu[\the\rest,%
+                         radio,%
+                         name=\csuse{cmdKV@MChoice@name}]%
+                        {}{{\noexpand\texorpdfstring{}{\ifstrempty{##2}{##1}{##2}}}=##1} \noexpand\ifstrempty{##2}{##1}{##2}} %
+  \begin{itemize}
+    \kv@parse{#3}\x%
+  \end{itemize}
+  \endgroup}
+
+\define@cmdkeys{MChoice}{%
+  name}
+
+\kv@set@family@handler{MChoice}{%
+  \ifstrequal{#1}{radio}{\kv@handled@false}%
+  \ifstrequal{#1}{combo}{\kv@handled@false}%
+  \ifstrequal{#1}{popdown}{\kv@handled@false}%
+  \ifstrempty{#2}{%
+    \rest=\expandafter{\the\rest,#1}%
+  }{% else
+    \rest=\expandafter{\the\rest,#1=#2}}}
+
+% MultipleChoice %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% MultipleAnswer %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\NewDocumentCommand{\MultipleAnswer}{s +O{} +m +m}{
+  \begingroup%
+  \newtoks\rest%
+  \newtoks\ids%
+  \kvsetkeys{MAnswer}{#2}%
+  \ifcsdef{cmdKV@MAnswer@name}{}{\csdef{cmdKV@MAnswer@name}{#3}}%
+  \def\x##1##2{\ids=\expandafter{\the\ids, "##1"}}%
+  \kv@parse{#4}\x%
+  \edef\tmpa{%
+    var prefix = "\cmdKV@MAnswer@name-",
+        suffixes = ["" \the\ids];
+    event.value = "";
+    for (i = 1; i < suffixes.length; i++) {
+      var field = this.getField(prefix + suffixes[i]);
+      if (field.value == "Yes") {
+        if (event.value == "") {
+          event.value = "/" + suffixes[i];
+        } else {
+          event.value += ",/" + suffixes[i];
+        }
+      }
+    }
+  }%
+  \def\mytf{\TextField[name=\cmdKV@MAnswer@name,calculate=\tmpa,hidden,value=]{#3}}%
+  \ifstrempty{#3}{}{\IfBooleanTF{#1}{#3}{\mytf}}%
+  \edef\y##1##2{%
+    \noexpand\item[]
+    \noexpand\CheckBox[\the\rest,%
+                       \ifcsdef{cmdKV@MAnswer@validate}{validate=\csuse{cmdKV@MAnswer@validate},}{}%
+                       name=\csuse{cmdKV@MAnswer@name}-##1]%
+                      {\noexpand\texorpdfstring{}{##1}} \noexpand\ifstrempty{##2}{##1}{##2}} %
+  \begin{itemize}
+    \kv@parse{#4}\y%
+    % if the label field is empty and we want a text field, we sneak it in on
+    % the end of the last item so that it doesn't cause a newline
+    \ifstrempty{#3}{\IfBooleanF{#1}{\mytf}}{}
+  \end{itemize}%
+  \endgroup}
+
+\define@cmdkeys{MAnswer}{%
+  name, validate}
+
+\kv@set@family@handler{MAnswer}{%
+  \ifstrempty{#2}{%
+    \rest=\expandafter{\the\rest,#1}%
+  }{% else
+    \rest=\expandafter{\the\rest,#1=#2}%
+  }%
+  \ids=\expandafter{\the\ids,"#1"}}
+
+% MultipleAnswer %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
